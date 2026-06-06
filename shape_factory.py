@@ -77,3 +77,29 @@ def make_cake_shapes(count: int, n_cells: int, seed: Optional[int] = None,
                      max_extent: int = 6) -> List[PolyominoShape]:
     cell_sets = generate_cakes(count, n_cells, seed=seed, max_extent=max_extent)
     return [PolyominoShape(cells, 0, 0) for cells in cell_sets]
+
+
+def make_varied_cake_shapes(count: int, size_min: int, size_max: int,
+                            seed: Optional[int] = None,
+                            max_extent: int = 6) -> List[PolyominoShape]:
+    """Generate `count` cakes, each with a random size in [size_min, size_max].
+
+    Mirrors generate_cakes' dedup + anti-rectangle behavior, but per-cake so
+    sizes can differ. Bigger-than-a-layer cakes are intended (cut/rotate to fit)."""
+    rng = random.Random(seed)
+    results: List[Set[CellCoord]] = []
+    while len(results) < count:
+        n_cells = rng.randint(size_min, size_max)
+        cells = None
+        for attempt in range(50):
+            candidate = generate_polyomino_cells(n_cells, rng, max_extent=max_extent)
+            if _is_perfect_rectangle(candidate) and attempt < 25:
+                continue
+            if any(candidate == existing for existing in results):
+                continue
+            cells = candidate
+            break
+        if cells is None:
+            cells = generate_polyomino_cells(n_cells, rng, max_extent=max_extent)
+        results.append(cells)
+    return [PolyominoShape(cells, 0, 0) for cells in results]

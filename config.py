@@ -8,7 +8,11 @@ GRID_CELL = 48
 
 TARGET_W = 6
 TARGET_H = 4
-CAKE_CELLS = TARGET_W * TARGET_H
+
+# Cakes vary in size: some smaller than a layer (24 cells), some larger.
+# 9 cakes for 8 layers means 1 spare. Range is configurable for tuning.
+CAKE_SIZE_MIN = 16
+CAKE_SIZE_MAX = 28
 
 TOTAL_CAKES = 9
 LAYERS_NEEDED = 8

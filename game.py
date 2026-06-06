@@ -3,7 +3,8 @@
 from typing import List, Optional, Set, Tuple
 
 from config import (
-    CAKE_CELLS,
+    CAKE_SIZE_MAX,
+    CAKE_SIZE_MIN,
     GRID_CELL,
     LAYERS_NEEDED,
     TARGET_H,
@@ -12,7 +13,7 @@ from config import (
     TOTAL_CAKES,
 )
 from shape import CellCoord, PolyominoShape
-from shape_factory import make_cake_shapes
+from shape_factory import make_varied_cake_shapes
 
 
 class Mode:
@@ -22,11 +23,12 @@ class Mode:
 
 class GameState:
     def __init__(self, seed: Optional[int] = None):
-        cakes = make_cake_shapes(TOTAL_CAKES, CAKE_CELLS, seed=seed)
+        cakes = make_varied_cake_shapes(TOTAL_CAKES, CAKE_SIZE_MIN, CAKE_SIZE_MAX, seed=seed)
         self.inventory: List[PolyominoShape] = cakes
         self.work_pieces: List[PolyominoShape] = []
         self.placed_pieces: List[PolyominoShape] = []
         self.layers_done: int = 0
+        self.layer_coverages: List[float] = []
         self.dragging: Optional[PolyominoShape] = None
         self.drag_offset: Tuple[float, float] = (0.0, 0.0)
         self.mode: str = Mode.MOVE
@@ -46,6 +48,20 @@ class GameState:
 
     def is_layer_complete(self) -> bool:
         return self.placed_cells() == self.target_cells
+
+    def coverage_fraction(self) -> float:
+        return len(self.placed_cells()) / len(self.target_cells)
+
+    def coverage_percent(self) -> float:
+        return 100.0 * self.coverage_fraction()
+
+    def can_bake(self) -> bool:
+        return len(self.placed_cells()) > 0
+
+    def average_coverage(self) -> float:
+        if not self.layer_coverages:
+            return 0.0
+        return sum(self.layer_coverages) / len(self.layer_coverages)
 
     def is_won(self) -> bool:
         return self.layers_done >= LAYERS_NEEDED
@@ -81,6 +97,40 @@ class GameState:
             return
         dx, dy = self.drag_offset
         self.dragging.move_to(mouse_x + dx, mouse_y + dy)
+
+    # ----- Rotation -----
+
+    @staticmethod
+    def _rotate_keeping_center(shape: PolyominoShape) -> None:
+        bb = shape.bounding_box()
+        cx, cy = bb.center
+        shape.rotate(clockwise=True)
+        nb = shape.bounding_box()
+        shape.move_by(cx - nb.centerx, cy - nb.centery)
+
+    def rotate_dragging(self, mouse_x: float, mouse_y: float) -> None:
+        if self.dragging is None:
+            return
+        self._rotate_keeping_center(self.dragging)
+        self.drag_offset = (self.dragging.world_x - mouse_x, self.dragging.world_y - mouse_y)
+
+    def rotate_under_cursor(self, point: Tuple[float, float]) -> None:
+        shape = self.find_shape_at(point)
+        if shape is None:
+            return
+        prev_cells = set(shape.cells)
+        prev_pos = (shape.world_x, shape.world_y)
+        self._rotate_keeping_center(shape)
+        if shape in self.placed_pieces:
+            snapped = shape.snapped_position(TARGET_ORIGIN)
+            shape.move_to(*snapped)
+            cells = shape.cells_in_target(TARGET_ORIGIN)
+            others = self.placed_cells() - shape.cells_in_target(TARGET_ORIGIN)
+            within = cells <= self.target_cells
+            no_overlap = cells.isdisjoint(others)
+            if not (within and no_overlap):
+                shape.cells = prev_cells
+                shape.move_to(*prev_pos)
 
     def release_drag(self, over_discard: bool) -> None:
         if self.dragging is None:
@@ -154,8 +204,9 @@ class GameState:
     # ----- Layer baking -----
 
     def bake_layer(self) -> bool:
-        if not self.is_layer_complete():
+        if not self.can_bake():
             return False
+        self.layer_coverages.append(self.coverage_percent())
         self.layers_done += 1
         self.placed_pieces.clear()
         return True

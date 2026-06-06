@@ -95,7 +95,8 @@ class StackView:
         self.slot_w = STACK_SLOT_W
         self.slot_h = STACK_SLOT_H
 
-    def draw(self, surface: pygame.Surface, layers_done: int, font: pygame.font.Font) -> None:
+    def draw(self, surface: pygame.Surface, layers_done: int,
+             layer_coverages: List[float], font: pygame.font.Font) -> None:
         title = font.render("Napoleon Stack", True, COLOR_TEXT)
         surface.blit(title, (self.x, self.y - 28))
         for k in range(LAYERS_NEEDED):
@@ -104,8 +105,17 @@ class StackView:
             color = COLOR_STACK_LAYER_DONE if done else COLOR_STACK_LAYER_EMPTY
             pygame.draw.rect(surface, color, (self.x, slot_y, self.slot_w, self.slot_h))
             pygame.draw.rect(surface, COLOR_TARGET_BORDER, (self.x, slot_y, self.slot_w, self.slot_h), 1)
+            if done and k < len(layer_coverages):
+                cov = font.render(f"{layer_coverages[k]:.0f}%", True, COLOR_TEXT)
+                surface.blit(cov, (self.x + self.slot_w - cov.get_width() - 6,
+                                   slot_y + (self.slot_h - cov.get_height()) // 2))
+        base_y = self.y + LAYERS_NEEDED * (self.slot_h + 2) + 8
         progress = font.render(f"{layers_done} / {LAYERS_NEEDED} layers", True, COLOR_TEXT)
-        surface.blit(progress, (self.x, self.y + LAYERS_NEEDED * (self.slot_h + 2) + 8))
+        surface.blit(progress, (self.x, base_y))
+        if layer_coverages:
+            avg = sum(layer_coverages) / len(layer_coverages)
+            avg_surf = font.render(f"Avg coverage: {avg:.0f}%", True, COLOR_TEXT)
+            surface.blit(avg_surf, (self.x, base_y + 22))
 
 
 class Button:

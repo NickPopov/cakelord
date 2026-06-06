@@ -8,6 +8,7 @@ from config import (
     COLOR_BG,
     COLOR_CAKE_HOVER,
     COLOR_CUT_HINT,
+    COLOR_CUT_VALID,
     COLOR_PLACED_FILL,
     COLOR_TEXT,
     GRID_CELL,
@@ -27,10 +28,11 @@ class PlayScene:
         self.discard = DiscardZone()
         self.bake_button = Button((620, 540, 200, 40), "Bake Layer (B)")
         self.cut_button = Button((400, 540, 200, 40), "Cut Mode (C): OFF")
-        self.reset_button = Button((40, 720, 160, 32), "New Game (R)")
+        self.reset_button = Button((40, 720, 160, 32), "New Game (N)")
         self.font: Optional[pygame.font.Font] = None
         self.big_font: Optional[pygame.font.Font] = None
         self.next_scene: Optional[str] = None
+        self.win_avg_coverage: float = 0.0
 
     def _ensure_fonts(self) -> None:
         if self.font is None:
@@ -45,6 +47,12 @@ class PlayScene:
             elif event.key == pygame.K_b:
                 self._try_bake()
             elif event.key == pygame.K_r:
+                mx, my = pygame.mouse.get_pos()
+                if self.game.dragging is not None:
+                    self.game.rotate_dragging(mx, my)
+                else:
+                    self.game.rotate_under_cursor((mx, my))
+            elif event.key == pygame.K_n:
                 self.game = GameState()
         elif event.type == pygame.MOUSEBUTTONDOWN:
             self._handle_mouse_down(event)
@@ -101,12 +109,13 @@ class PlayScene:
     def _try_bake(self) -> None:
         if self.game.bake_layer():
             if self.game.is_won():
+                self.win_avg_coverage = self.game.average_coverage()
                 self.next_scene = "win"
 
     def _update_button_state(self) -> None:
         on_off = "ON" if self.game.mode == Mode.CUT else "OFF"
         self.cut_button.label = f"Cut Mode (C): {on_off}"
-        self.bake_button.enabled = self.game.is_layer_complete()
+        self.bake_button.enabled = self.game.can_bake()
 
     def render(self, surface: pygame.Surface) -> None:
         self._ensure_fonts()
@@ -117,7 +126,7 @@ class PlayScene:
 
         title = self.big_font.render("Napoleon Cake Builder", True, COLOR_TEXT)
         surface.blit(title, (260, 30))
-        help_text = "L-drag: move  •  R-click: unsnap placed piece  •  C: cut mode  •  B: bake"
+        help_text = "L-drag: move  •  R: rotate  •  R-click: unsnap  •  C: cut  •  B: bake (any coverage)"
         help_surf = self.font.render(help_text, True, COLOR_TEXT)
         surface.blit(help_surf, (260, 75))
 
@@ -140,16 +149,23 @@ class PlayScene:
                     (x1, y1), (x2, y2) = shape.cut_hint_segment(cut)
                     pygame.draw.line(surface, COLOR_CUT_HINT, (x1, y1), (x2, y2), 4)
 
+        pct = self.game.coverage_percent()
+        complete = self.game.is_layer_complete()
+        cov_color = COLOR_CUT_VALID if complete else COLOR_TEXT
+        cov_surf = self.font.render(f"Coverage: {pct:.0f}%", True, cov_color)
+        surface.blit(cov_surf, (620, 514))
+
         self.discard.draw(surface, self.font, mouse_pos)
         self.inventory_bar.draw(surface, self.game.inventory, self.font)
-        self.stack_view.draw(surface, self.game.layers_done, self.font)
+        self.stack_view.draw(surface, self.game.layers_done, self.game.layer_coverages, self.font)
         self.cut_button.draw(surface, self.font, mouse_pos)
         self.bake_button.draw(surface, self.font, mouse_pos)
         self.reset_button.draw(surface, self.font, mouse_pos)
 
 
 class WinScene:
-    def __init__(self):
+    def __init__(self, avg_coverage: float = 0.0):
+        self.avg_coverage = avg_coverage
         self.font: Optional[pygame.font.Font] = None
         self.big_font: Optional[pygame.font.Font] = None
         self.next_scene: Optional[str] = None
@@ -170,6 +186,9 @@ class WinScene:
         surface.fill((40, 25, 15))
         title = self.big_font.render("Napoleon Cake Done!", True, (255, 230, 180))
         surface.blit(title, title.get_rect(center=(SCREEN_W // 2, 120)))
+
+        avg = self.font.render(f"Average coverage: {self.avg_coverage:.0f}%", True, (255, 230, 180))
+        surface.blit(avg, avg.get_rect(center=(SCREEN_W // 2, 180)))
 
         cx = SCREEN_W // 2
         base_y = 580

@@ -219,6 +219,21 @@ class PolyominoShape(Shape):
                     pieces.append(PolyominoShape(comp, self.world_x, self.world_y))
         return pieces
 
+    def rotate(self, clockwise: bool = True) -> None:
+        """Rotate cells 90 degrees and re-normalize so min i/j = 0.
+
+        World position is unchanged here; callers that want to keep the piece
+        centered (e.g. under the cursor) adjust world position afterwards."""
+        if not self.cells:
+            return
+        if clockwise:
+            rotated = {(j, -i) for (i, j) in self.cells}
+        else:
+            rotated = {(-j, i) for (i, j) in self.cells}
+        mi = min(i for i, _ in rotated)
+        mj = min(j for _, j in rotated)
+        self.cells = {(i - mi, j - mj) for (i, j) in rotated}
+
     def move_by(self, dx: float, dy: float) -> None:
         self.world_x += dx
         self.world_y += dy
