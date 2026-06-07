@@ -28,7 +28,10 @@ async def main() -> None:
         pygame.display.flip()
 
         if getattr(scene, "next_scene", None) == "win":
-            scene = WinScene(getattr(scene, "win_avg_coverage", 0.0))
+            scene = WinScene(
+                getattr(scene, "win_avg_coverage", 0.0),
+                getattr(scene, "win_crumbs", 0),
+            )
         elif getattr(scene, "next_scene", None) == "play":
             scene = PlayScene()
 

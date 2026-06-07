@@ -4,6 +4,8 @@ A web puzzle game where you assemble a Napoleon cake from 9 irregular cake layer
 
 Cutting is risky: cakes can **crack**. A cracked cut doesn't follow a straight line (you get one bigger and one smaller piece) and may shed a few cells as lost crumbs. Smaller pieces are more fragile, so trimming an offcut down to fit a tight gap is a gamble.
 
+Nothing goes to waste: those crumbs are collected and used to **decorate the top of the napoleon**. Gather 24 crumb units to fully decorate it.
+
 Written entirely in Python with Pygame, compiled to WebAssembly via Pygbag.
 
 ## Coverage scoring
@@ -15,6 +17,17 @@ Each baked layer is scored on coverage. Coverage starts from how much of the 6×
 - Leaving empty space lowers coverage too, through the filled-cell fraction.
 
 So a clean fit with fewer cuts always scores higher than the same area split into many pieces.
+
+## Crumbs & decoration
+
+Every cake cell is worth 1 crumb unit, and crumbs are gathered to decorate the top of the finished napoleon. Decoration is scored just like a layer: 24 (6×4) crumbs = **100%**, with the percentage shown live in the HUD and on the win screen. Decoration is a quality score, not a win requirement — you still win by baking 8 layers.
+
+Crumbs come from two places:
+
+- **Cracked cuts** — cells shed when a cut cracks are kept as crumbs (the "lost N crumb(s)" you see on a crack).
+- **Leftover cakes** — when you win, any cakes still in the inventory or work area are swept up into crumbs.
+
+Discarded pieces (dropped on **DISCARD**) are thrown away and do **not** become crumbs.
 
 ## Controls
 

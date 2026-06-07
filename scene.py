@@ -10,9 +10,11 @@ from config import (
     COLOR_CRUMB,
     COLOR_CUT_HINT,
     COLOR_CUT_VALID,
+    COLOR_DECOR,
     COLOR_PLACED_FILL,
     COLOR_TEXT,
     CRUMB_FLASH_MS,
+    CRUMB_GOAL,
     CUT_MESSAGE_MS,
     GRID_CELL,
     LAYERS_NEEDED,
@@ -36,6 +38,7 @@ class PlayScene:
         self.big_font: Optional[pygame.font.Font] = None
         self.next_scene: Optional[str] = None
         self.win_avg_coverage: float = 0.0
+        self.win_crumbs: int = 0
         self.cut_message: str = ""
         self.cut_message_until: int = 0
         self.crumb_flashes: list = []  # (x, y, until_ms)
@@ -129,6 +132,7 @@ class PlayScene:
         if self.game.bake_layer():
             if self.game.is_won():
                 self.win_avg_coverage = self.game.average_coverage()
+                self.win_crumbs = self.game.crumbs
                 self.next_scene = "win"
 
     def _update_button_state(self) -> None:
@@ -183,6 +187,14 @@ class PlayScene:
         cov_surf = self.font.render(f"Coverage: {pct:.0f}%", True, cov_color)
         surface.blit(cov_surf, (620, 514))
 
+        decor = self.game.decoration_coverage_percent()
+        crumb_surf = self.font.render(
+            f"Crumbs: {self.game.crumbs}/{CRUMB_GOAL}  Decoration: {decor:.0f}%",
+            True,
+            COLOR_DECOR,
+        )
+        surface.blit(crumb_surf, (620, 492))
+
         if self.cut_message and now < self.cut_message_until:
             msg_surf = self.big_font.render(self.cut_message, True, COLOR_CUT_HINT)
             surface.blit(msg_surf, msg_surf.get_rect(center=(SCREEN_W // 2, 110)))
@@ -196,8 +208,10 @@ class PlayScene:
 
 
 class WinScene:
-    def __init__(self, avg_coverage: float = 0.0):
+    def __init__(self, avg_coverage: float = 0.0, crumbs: int = 0):
         self.avg_coverage = avg_coverage
+        self.crumbs = crumbs
+        self.decoration = 100.0 * min(crumbs, CRUMB_GOAL) / CRUMB_GOAL
         self.font: Optional[pygame.font.Font] = None
         self.big_font: Optional[pygame.font.Font] = None
         self.next_scene: Optional[str] = None
@@ -221,6 +235,13 @@ class WinScene:
 
         avg = self.font.render(f"Average coverage: {self.avg_coverage:.0f}%", True, (255, 230, 180))
         surface.blit(avg, avg.get_rect(center=(SCREEN_W // 2, 180)))
+
+        decor_surf = self.font.render(
+            f"Decoration: {self.decoration:.0f}%  ({self.crumbs}/{CRUMB_GOAL} crumbs)",
+            True,
+            (255, 230, 180),
+        )
+        surface.blit(decor_surf, decor_surf.get_rect(center=(SCREEN_W // 2, 215)))
 
         cx = SCREEN_W // 2
         base_y = 580

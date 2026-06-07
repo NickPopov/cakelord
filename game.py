@@ -13,6 +13,7 @@ from config import (
     BREAK_SMALL_SIZE,
     CAKE_SIZE_MAX,
     CAKE_SIZE_MIN,
+    CRUMB_GOAL,
     GRID_CELL,
     LAYERS_NEEDED,
     TARGET_H,
@@ -51,6 +52,7 @@ class GameState:
         self.drag_offset: Tuple[float, float] = (0.0, 0.0)
         self.mode: str = Mode.MOVE
         self.rng = random.Random(seed)
+        self.crumbs: int = 0
 
     def toggle_mode(self) -> None:
         self.mode = Mode.CUT if self.mode == Mode.MOVE else Mode.MOVE
@@ -108,6 +110,9 @@ class GameState:
 
     def is_won(self) -> bool:
         return self.layers_done >= LAYERS_NEEDED
+
+    def decoration_coverage_percent(self) -> float:
+        return 100.0 * min(self.crumbs, CRUMB_GOAL) / CRUMB_GOAL
 
     # ----- Drag lifecycle -----
 
@@ -258,10 +263,12 @@ class GameState:
             if k > 0:
                 p.move_by(nudge_x * k, nudge_y * k)
             target_container.append(p)
+        crumbs_lost = len(crumb_world_cells)
+        self.crumbs += crumbs_lost
         return CutOutcome(
             success=True,
             broke=broke,
-            crumbs_lost=len(crumb_world_cells),
+            crumbs_lost=crumbs_lost,
             crumb_world_cells=crumb_world_cells,
         )
 
@@ -284,4 +291,12 @@ class GameState:
         self.layer_coverages.append(self.coverage_percent())
         self.layers_done += 1
         self.placed_pieces.clear()
+        if self.is_won():
+            # Unused cakes are swept up as crumbs for the final decoration.
+            for piece in self.inventory:
+                self.crumbs += len(piece.cells)
+            for piece in self.work_pieces:
+                self.crumbs += len(piece.cells)
+            self.inventory.clear()
+            self.work_pieces.clear()
         return True

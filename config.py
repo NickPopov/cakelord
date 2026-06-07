@@ -65,3 +65,7 @@ BREAK_CRUMB_MAX = 2        # max cells lost to crumbs
 COLOR_CRUMB = (120, 70, 30)  # crumb flash color
 CRUMB_FLASH_MS = 800
 CUT_MESSAGE_MS = 2000
+
+# --- Crumbs resource (decorate the napoleon top) ---
+CRUMB_GOAL = TARGET_W * TARGET_H   # 24 crumb units fully decorate the napoleon top
+COLOR_DECOR = (180, 120, 60)       # HUD color for crumb / decoration readout
