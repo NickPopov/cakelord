@@ -1,16 +1,17 @@
 # Napoleon Cake Builder
 
-A web puzzle game where you assemble a Napoleon cake from 9 irregular cake layers (коржі). Cut each cake into pieces and rearrange them into a 6×4 rectangle. Bake 8 layers to win.
+A web puzzle game where you assemble a Napoleon cake from 9 irregular cake layers (коржі) of varying size. Cut and rotate each cake into pieces and fit them into a 6×4 rectangle, then bake the layer — the more of the rectangle you cover, the better. Bake 8 layers to win.
 
 Written entirely in Python with Pygame, compiled to WebAssembly via Pygbag.
 
 ## Controls
 
 - **Left-click + drag** — grab a cake from the inventory or move a piece in the work area.
+- **R** — rotate the piece you're dragging (or hovering over) by 90°.
 - **Right-click** on a placed piece — unsnap it from the target rectangle.
 - **C** (or click "Cut Mode") — toggle cut mode. In cut mode, hover over a piece to preview the cut line, then click to cut.
-- **B** (or click "Bake Layer") — bake the current layer once the target rectangle is fully filled.
-- **R** — start a new game.
+- **B** (or click "Bake Layer") — bake the current layer. Allowed at any coverage above 0%; your coverage is recorded per layer, so aim to fill as much as possible.
+- **N** (or click "New Game") — start a new game.
 - Drop a piece on **DISCARD** to throw it away.
 
 ## Run locally
@@ -43,8 +44,8 @@ The output is placed in `build/web/`.
 ```
 main.py              # async entry point (required for pygbag)
 scene.py             # PlayScene + WinScene
-game.py              # GameState — inventory, work pieces, placed pieces, layers
-shape.py             # Shape ABC + PolyominoShape (cells, cut, snap)
+game.py              # GameState — inventory, work pieces, placed pieces, layers, coverage
+shape.py             # Shape ABC + PolyominoShape (cells, cut, snap, rotate)
 shape_factory.py     # Random polyomino generator (frontier-set growth)
 ui.py                # InventoryBar, StackView, Button, DiscardZone, target area
 config.py            # Constants (grid size, colors, layout)
