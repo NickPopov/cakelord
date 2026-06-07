@@ -2,6 +2,8 @@
 
 A web puzzle game where you assemble a Napoleon cake from 9 irregular cake layers (коржі) of varying size. Cut and rotate each cake into pieces and fit them into a 6×4 rectangle, then bake the layer — the more of the rectangle you cover, the better. Bake 8 layers to win.
 
+Cutting is risky: cakes can **crack**. A cracked cut doesn't follow a straight line (you get one bigger and one smaller piece) and may shed a few cells as lost crumbs. Smaller pieces are more fragile, so trimming an offcut down to fit a tight gap is a gamble.
+
 Written entirely in Python with Pygame, compiled to WebAssembly via Pygbag.
 
 ## Controls
@@ -9,7 +11,7 @@ Written entirely in Python with Pygame, compiled to WebAssembly via Pygbag.
 - **Left-click + drag** — grab a cake from the inventory or move a piece in the work area.
 - **R** — rotate the piece you're dragging (or hovering over) by 90°.
 - **Right-click** on a placed piece — unsnap it from the target rectangle.
-- **C** (or click "Cut Mode") — toggle cut mode. In cut mode, hover over a piece to preview the cut line, then click to cut.
+- **C** (or click "Cut Mode") — toggle cut mode. In cut mode, hover over a piece to preview the cut line, then click to cut. Cuts can crack — watch for the "Cracked!" message and the crumb flash where cells fall off.
 - **B** (or click "Bake Layer") — bake the current layer. Allowed at any coverage above 0%; your coverage is recorded per layer, so aim to fill as much as possible.
 - **N** (or click "New Game") — start a new game.
 - Drop a piece on **DISCARD** to throw it away.

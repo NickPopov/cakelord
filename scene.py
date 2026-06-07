@@ -7,10 +7,13 @@ import pygame
 from config import (
     COLOR_BG,
     COLOR_CAKE_HOVER,
+    COLOR_CRUMB,
     COLOR_CUT_HINT,
     COLOR_CUT_VALID,
     COLOR_PLACED_FILL,
     COLOR_TEXT,
+    CRUMB_FLASH_MS,
+    CUT_MESSAGE_MS,
     GRID_CELL,
     LAYERS_NEEDED,
     SCREEN_H,
@@ -33,6 +36,9 @@ class PlayScene:
         self.big_font: Optional[pygame.font.Font] = None
         self.next_scene: Optional[str] = None
         self.win_avg_coverage: float = 0.0
+        self.cut_message: str = ""
+        self.cut_message_until: int = 0
+        self.crumb_flashes: list = []  # (x, y, until_ms)
 
     def _ensure_fonts(self) -> None:
         if self.font is None:
@@ -93,7 +99,17 @@ class PlayScene:
         if self.game.mode == Mode.CUT:
             shape = self.game.find_shape_at(event.pos)
             if shape is not None:
-                self.game.try_cut(shape, event.pos, max_dist=GRID_CELL / 2)
+                outcome = self.game.try_cut(shape, event.pos, max_dist=GRID_CELL / 2)
+                if outcome.broke:
+                    now = pygame.time.get_ticks()
+                    if outcome.crumbs_lost:
+                        self.cut_message = f"Cracked! lost {outcome.crumbs_lost} crumb(s)"
+                    else:
+                        self.cut_message = "Cracked!"
+                    self.cut_message_until = now + CUT_MESSAGE_MS
+                    self.crumb_flashes = [
+                        (x, y, now + CRUMB_FLASH_MS) for (x, y) in outcome.crumb_world_cells
+                    ]
             return
 
         shape = self.game.find_shape_at(event.pos)
@@ -129,7 +145,7 @@ class PlayScene:
 
         title = self.big_font.render("Napoleon Cake Builder", True, COLOR_TEXT)
         surface.blit(title, (260, 30))
-        help_text = "L-drag: move/replace any piece  •  R: rotate  •  C: cut  •  B: bake (any coverage)"
+        help_text = "L-drag: move  •  R: rotate  •  C: cut (cakes can crack!)  •  B: bake (any coverage)"
         help_surf = self.font.render(help_text, True, COLOR_TEXT)
         surface.blit(help_surf, (260, 75))
 
@@ -144,6 +160,15 @@ class PlayScene:
         if self.game.dragging is not None:
             self.game.dragging.render(surface, override_color=COLOR_CAKE_HOVER)
 
+        now = pygame.time.get_ticks()
+        if self.crumb_flashes:
+            self.crumb_flashes = [(x, y, u) for (x, y, u) in self.crumb_flashes if u > now]
+            for (x, y, until) in self.crumb_flashes:
+                alpha = max(0, min(255, int(255 * (until - now) / CRUMB_FLASH_MS)))
+                crumb = pygame.Surface((GRID_CELL, GRID_CELL), pygame.SRCALPHA)
+                crumb.fill((*COLOR_CRUMB, alpha))
+                surface.blit(crumb, (x, y))
+
         if self.game.mode == Mode.CUT and self.game.dragging is None:
             shape = self.game.find_shape_at(mouse_pos)
             if shape is not None:
@@ -157,6 +182,10 @@ class PlayScene:
         cov_color = COLOR_CUT_VALID if complete else COLOR_TEXT
         cov_surf = self.font.render(f"Coverage: {pct:.0f}%", True, cov_color)
         surface.blit(cov_surf, (620, 514))
+
+        if self.cut_message and now < self.cut_message_until:
+            msg_surf = self.big_font.render(self.cut_message, True, COLOR_CUT_HINT)
+            surface.blit(msg_surf, msg_surf.get_rect(center=(SCREEN_W // 2, 110)))
 
         self.discard.draw(surface, self.font, mouse_pos)
         self.inventory_bar.draw(surface, self.game.inventory, self.font)

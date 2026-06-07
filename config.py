@@ -50,3 +50,18 @@ COLOR_DISCARD = (200, 100, 100)
 COLOR_DISCARD_HOVER = (230, 120, 120)
 COLOR_CUT_HINT = (255, 80, 80)
 COLOR_CUT_VALID = (80, 200, 80)
+
+# --- Cake breaking (cuts can crack) ---
+# Break chance is interpolated by the cut piece's cell count between two anchors;
+# smaller pieces are more fragile.
+BREAK_SMALL_SIZE = 4       # <= this many cells -> BREAK_CHANCE_SMALL
+BREAK_LARGE_SIZE = 24      # >= this many cells -> BREAK_CHANCE_LARGE
+BREAK_CHANCE_SMALL = 0.6   # fragile small offcuts
+BREAK_CHANCE_LARGE = 0.1   # sturdier big cakes
+BREAK_JAGGEDNESS = 2       # max per-line deviation of a cracked cut (cells)
+BREAK_CRUMB_CHANCE = 0.5   # given a break, chance that cells also crumble away
+BREAK_CRUMB_MAX = 2        # max cells lost to crumbs
+
+COLOR_CRUMB = (120, 70, 30)  # crumb flash color
+CRUMB_FLASH_MS = 800
+CUT_MESSAGE_MS = 2000

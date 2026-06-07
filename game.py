@@ -1,8 +1,16 @@
 """Game state and core operations."""
 
-from typing import List, Optional, Set, Tuple
+import random
+from typing import List, NamedTuple, Optional, Set, Tuple
 
 from config import (
+    BREAK_CHANCE_LARGE,
+    BREAK_CHANCE_SMALL,
+    BREAK_CRUMB_CHANCE,
+    BREAK_CRUMB_MAX,
+    BREAK_JAGGEDNESS,
+    BREAK_LARGE_SIZE,
+    BREAK_SMALL_SIZE,
     CAKE_SIZE_MAX,
     CAKE_SIZE_MIN,
     GRID_CELL,
@@ -21,6 +29,16 @@ class Mode:
     CUT = "cut"
 
 
+class CutOutcome(NamedTuple):
+    """Result of a cut attempt. ``crumb_world_cells`` are (x, y) top-left pixel
+    positions of cells lost as crumbs, for transient UI feedback."""
+
+    success: bool
+    broke: bool = False
+    crumbs_lost: int = 0
+    crumb_world_cells: Tuple[Tuple[float, float], ...] = ()
+
+
 class GameState:
     def __init__(self, seed: Optional[int] = None):
         cakes = make_varied_cake_shapes(TOTAL_CAKES, CAKE_SIZE_MIN, CAKE_SIZE_MAX, seed=seed)
@@ -32,6 +50,7 @@ class GameState:
         self.dragging: Optional[PolyominoShape] = None
         self.drag_offset: Tuple[float, float] = (0.0, 0.0)
         self.mode: str = Mode.MOVE
+        self.rng = random.Random(seed)
 
     def toggle_mode(self) -> None:
         self.mode = Mode.CUT if self.mode == Mode.MOVE else Mode.MOVE
@@ -156,13 +175,40 @@ class GameState:
 
     # ----- Cut -----
 
-    def try_cut(self, shape: PolyominoShape, point: Tuple[float, float], max_dist: float) -> bool:
+    @staticmethod
+    def break_chance(n_cells: int) -> float:
+        """Probability that a cut of a piece with ``n_cells`` cells cracks.
+        Lerp between the small/large anchors; smaller pieces are more fragile."""
+        if n_cells <= BREAK_SMALL_SIZE:
+            return BREAK_CHANCE_SMALL
+        if n_cells >= BREAK_LARGE_SIZE:
+            return BREAK_CHANCE_LARGE
+        t = (n_cells - BREAK_SMALL_SIZE) / (BREAK_LARGE_SIZE - BREAK_SMALL_SIZE)
+        return BREAK_CHANCE_SMALL + t * (BREAK_CHANCE_LARGE - BREAK_CHANCE_SMALL)
+
+    def try_cut(self, shape: PolyominoShape, point: Tuple[float, float], max_dist: float) -> CutOutcome:
         cut = shape.closest_cut(point, max_dist)
         if cut is None:
-            return False
-        pieces = shape.apply_cut(cut)
+            return CutOutcome(success=False)
+
+        broke = self.rng.random() < self.break_chance(len(shape.cells))
+        crumb_world_cells: Tuple[Tuple[float, float], ...] = ()
+        pieces: List[PolyominoShape] = []
+        if broke:
+            pieces, lost = shape.apply_broken_cut(
+                cut, self.rng, BREAK_JAGGEDNESS, BREAK_CRUMB_CHANCE, BREAK_CRUMB_MAX
+            )
+            crumb_world_cells = tuple(
+                (shape.world_x + i * GRID_CELL, shape.world_y + j * GRID_CELL)
+                for (i, j) in lost
+            )
+        if not pieces:  # not broken, or the crack collapsed -> clean fallback
+            broke = False
+            crumb_world_cells = ()
+            pieces = shape.apply_cut(cut)
         if len(pieces) < 2:
-            return False
+            return CutOutcome(success=False)
+
         nudge_x, nudge_y = 0.0, 0.0
         if cut.direction == "h":
             nudge_y = 6.0
@@ -172,7 +218,7 @@ class GameState:
         in_placed = shape in self.placed_pieces
         container = self.work_pieces if in_work else (self.placed_pieces if in_placed else None)
         if container is None:
-            return False
+            return CutOutcome(success=False)
         idx = container.index(shape)
         # When cutting a placed piece, separation breaks the grid alignment, so
         # demote it to work_pieces (the layer is no longer "sealed" there).
@@ -188,7 +234,12 @@ class GameState:
             if k > 0:
                 p.move_by(nudge_x * k, nudge_y * k)
             target_container.append(p)
-        return True
+        return CutOutcome(
+            success=True,
+            broke=broke,
+            crumbs_lost=len(crumb_world_cells),
+            crumb_world_cells=crumb_world_cells,
+        )
 
     # ----- Lookup -----
 

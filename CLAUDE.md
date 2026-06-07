@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Napoleon Cake Builder: a single-player puzzle game written in pure Python with **pygame-ce**, compiled to WebAssembly via **pygbag** to run in the browser. You drag irregular polyomino "cakes" from an inventory, optionally cut/rotate them, and fit them into a 6×4 target rectangle to "bake" layers — 8 layers wins.
+Napoleon Cake Builder: a single-player puzzle game written in pure Python with **pygame-ce**, compiled to WebAssembly via **pygbag** to run in the browser. You drag irregular polyomino "cakes" from an inventory, optionally cut/rotate them, and fit them into a 6×4 target rectangle to "bake" layers — 8 layers wins. Cuts are risky: a cut can **crack**, producing an uneven (jagged) split and sometimes shedding cells as lost crumbs; smaller pieces are more fragile.
 
 ## Commands
 
@@ -27,7 +27,7 @@ There is **no test suite**. Verify changes with quick scripts against the venv i
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy .venv/bin/python -c "import pygame; pygame.init(); pygame.display.set_mode((1024,768)); from scene import PlayScene; PlayScene(seed=1).render(pygame.display.get_surface()); print('render OK')"
 ```
 
-`GameState(seed=...)` makes generation deterministic — pass a seed in tests.
+`GameState(seed=...)` makes generation **and** cut breaking deterministic — pass a seed in tests. Generation uses its own seeded RNG; `GameState.rng` (a separate `random.Random(seed)`) drives break rolls, jagged seams, and crumb loss.
 
 ## Architecture
 
@@ -39,15 +39,16 @@ The render/update loop lives in `main.py` (async, required by pygbag) and is int
 - Placement (`release_drag`) snaps to the grid and only accepts a piece if its cells stay within the 6×4 target **and** don't overlap already-placed cells.
 - Coverage is tracked, not required: `bake_layer` succeeds at any coverage > 0, appends `coverage_percent()` to in-session `layer_coverages`, and clears `placed_pieces`. Win = `layers_done >= LAYERS_NEEDED`.
 - All target-frame math keys off `TARGET_ORIGIN` and `GRID_CELL`; a piece's `cells_in_target()` converts its world pixel position into target grid coordinates.
+- Cutting (`try_cut`) rolls `GameState.rng.random() < break_chance(len(shape.cells))` — `break_chance` lerps between the small/large size anchors so smaller pieces crack more. On a break it calls `apply_broken_cut`; if the crack collapses to <2 pieces it falls back to a clean `apply_cut`, so a cut never silently no-ops. It returns a `CutOutcome` namedtuple (`success`, `broke`, `crumbs_lost`, `crumb_world_cells`) that `PlayScene` turns into the transient "Cracked!" message and crumb flash.
 
-**Geometry layer (`shape.py`)** — `Shape` is an ABC that isolates geometry from everything above; only `PolyominoShape` (a `set` of `(i,j)` cells + a world pixel origin) is implemented. This boundary is deliberate: a `PolygonShape` could be added without touching the game loop, scenes, or `GameState`. `PolyominoShape` handles rendering, hit-testing, snapping, rotation (90° with caller-side re-centering), and cutting (`apply_cut` splits along an axis line and re-splits into connected components, so one cut can yield >2 pieces).
+**Geometry layer (`shape.py`)** — `Shape` is an ABC that isolates geometry from everything above; only `PolyominoShape` (a `set` of `(i,j)` cells + a world pixel origin) is implemented. This boundary is deliberate: a `PolygonShape` could be added without touching the game loop, scenes, or `GameState`. `PolyominoShape` handles rendering, hit-testing, snapping, rotation (90° with caller-side re-centering), and cutting. `apply_cut` splits along an axis line and re-splits into connected components, so one cut can yield >2 pieces. `apply_broken_cut` is the cracked variant: the seam wanders via a bounded random walk (perpendicular to the split axis) for an uneven split, then optionally drops a few boundary cells as crumbs; it returns `(pieces, lost_cells)` and `([], [])` if the crack fails to yield ≥2 pieces. `apply_cut` is kept clean/lossless as both the ABC method and the no-break/fallback path.
 
 **Generation (`shape_factory.py`)** — `make_varied_cake_shapes` grows each cake via a frontier-set random walk (`generate_polyomino_cells`) at a random size in `[CAKE_SIZE_MIN, CAKE_SIZE_MAX]`, de-duplicating and avoiding perfect rectangles. Cakes intentionally vary in size (some larger than a 24-cell layer) so the puzzle requires cutting/rotating.
 
-**Config (`config.py`)** — all tunables (grid/screen dims, cake size range, layer counts, colors, widget rects) live here as module constants; there is no config file or env-var layer.
+**Config (`config.py`)** — all tunables (grid/screen dims, cake size range, layer counts, colors, widget rects) live here as module constants; there is no config file or env-var layer. The cake-breaking knobs (`BREAK_*` size anchors/chances, `BREAK_JAGGEDNESS`, crumb chance/max, `COLOR_CRUMB`, `CRUMB_FLASH_MS`, `CUT_MESSAGE_MS`) are the tuning surface for difficulty — always-on numeric values, not on/off toggles.
 
 ## Conventions
 
 - Cell coordinates are `(i, j)` = `(column, row)`; world coordinates are screen pixels of the shape's local `(0,0)` cell. Don't conflate the two — convert via `GRID_CELL` and `TARGET_ORIGIN`.
 - Keep `Shape`'s abstraction intact: game/UI code should use `PolyominoShape` only through the `Shape` interface so the geometry backend stays swappable.
-- Controls (note: the README is currently out of date here): **left-drag** move, **R** rotate the active/hovered piece, **right-click** unsnap a placed piece, **C** cut mode, **B** bake, **N** new game, drop on **DISCARD** to remove.
+- Controls: **left-drag** move, **R** rotate the active/hovered piece, **right-click** unsnap a placed piece, **C** cut mode (cuts can crack), **B** bake, **N** new game, drop on **DISCARD** to remove.

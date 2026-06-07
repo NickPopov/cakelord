@@ -219,6 +219,74 @@ class PolyominoShape(Shape):
                     pieces.append(PolyominoShape(comp, self.world_x, self.world_y))
         return pieces
 
+    def apply_broken_cut(
+        self,
+        cut: Cut,
+        rng,
+        jaggedness: int,
+        crumb_chance: float,
+        crumb_max: int,
+    ) -> Tuple[List["PolyominoShape"], List[CellCoord]]:
+        """Cut along a jagged (cracked) seam instead of a straight line, and
+        optionally shed a few cells as crumbs.
+
+        Returns (pieces, lost_cells). lost_cells are in shape-local coordinates.
+        If the jagged seam fails to produce at least 2 pieces, returns ([], [])
+        so the caller can fall back to a clean cut.
+        """
+        horizontal = cut.direction == CutDirection.HORIZONTAL
+        # The seam runs along the axis perpendicular to the cut's split axis.
+        # For a horizontal cut (split on j) the seam wanders per-column (i).
+        keys = sorted({(i if horizontal else j) for (i, j) in self.cells})
+        offsets: dict = {}
+        off = rng.randint(-jaggedness, jaggedness) if jaggedness > 0 else 0
+        for k in keys:
+            offsets[k] = off
+            if jaggedness > 0:
+                off = max(-jaggedness, min(jaggedness, off + rng.choice((-1, 0, 1))))
+
+        side_a: Set[CellCoord] = set()
+        side_b: Set[CellCoord] = set()
+        for (i, j) in self.cells:
+            if horizontal:
+                line = cut.line + offsets[i]
+                (side_a if j < line else side_b).add((i, j))
+            else:
+                line = cut.line + offsets[j]
+                (side_a if i < line else side_b).add((i, j))
+
+        if not side_a or not side_b:
+            return [], []
+
+        # Crumbs fall from cells that sit right against the seam.
+        lost: List[CellCoord] = []
+        if crumb_max > 0 and rng.random() < crumb_chance:
+            boundary: List[CellCoord] = []
+            for (i, j) in side_a:
+                for n in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)):
+                    if n in side_b:
+                        boundary.append((i, j))
+                        break
+            for (i, j) in side_b:
+                for n in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)):
+                    if n in side_a:
+                        boundary.append((i, j))
+                        break
+            rng.shuffle(boundary)
+            for cell in boundary[: rng.randint(1, crumb_max)]:
+                lost.append(cell)
+                side_a.discard(cell)
+                side_b.discard(cell)
+
+        pieces: List[PolyominoShape] = []
+        for group in (side_a, side_b):
+            for comp in _connected_components(group):
+                if comp:
+                    pieces.append(PolyominoShape(comp, self.world_x, self.world_y))
+        if len(pieces) < 2:
+            return [], []
+        return pieces, lost
+
     def rotate(self, clockwise: bool = True) -> None:
         """Rotate cells 90 degrees and re-normalize so min i/j = 0.
 
