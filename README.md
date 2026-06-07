@@ -6,6 +6,16 @@ Cutting is risky: cakes can **crack**. A cracked cut doesn't follow a straight l
 
 Written entirely in Python with Pygame, compiled to WebAssembly via Pygbag.
 
+## Coverage scoring
+
+Each baked layer is scored on coverage. Coverage starts from how much of the 6×4 rectangle is filled, then subtracts a **cutting penalty**: the more pieces you use, the more total edge you create, and each extra edge over an uncut layer costs 1%. The penalty is based on each piece's own shape, so it's **independent of where you drop the pieces** — only how you cut matters.
+
+- One uncut 6×4 cake fills the rectangle with no extra edges → **100%**.
+- Two 3×4 pieces add 8 edges of seam between them → **92%**.
+- Leaving empty space lowers coverage too, through the filled-cell fraction.
+
+So a clean fit with fewer cuts always scores higher than the same area split into many pieces.
+
 ## Controls
 
 - **Left-click + drag** — grab a cake from the inventory or move a piece in the work area.

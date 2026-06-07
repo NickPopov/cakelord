@@ -71,8 +71,32 @@ class GameState:
     def coverage_fraction(self) -> float:
         return len(self.placed_cells()) / len(self.target_cells)
 
+    @staticmethod
+    def _perimeter(cells: Set[CellCoord]) -> int:
+        """Edge count of a polyomino: 4 per cell minus shared inner edges."""
+        perim = 0
+        for (i, j) in cells:
+            for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                if (ni, nj) not in cells:
+                    perim += 1
+        return perim
+
+    def seam_penalty_percent(self) -> float:
+        """Cost of cutting the layer into pieces, independent of placement.
+
+        Each piece's own perimeter is intrinsic to its shape, so cutting a
+        single cake into more pieces adds total edge length wherever the
+        pieces are dropped. The penalty is that extra edge over an uncut
+        layer (the target's perimeter), at 1% per edge: a lone 6x4 cake has
+        perimeter 20 -> no penalty -> 100%, while two 3x4 pieces total 28
+        -> 8 extra edges -> 8% -> 92%.
+        """
+        total = sum(self._perimeter(p.cells) for p in self.placed_pieces)
+        target_perimeter = 2 * (TARGET_W + TARGET_H)
+        return float(max(0, total - target_perimeter))
+
     def coverage_percent(self) -> float:
-        return 100.0 * self.coverage_fraction()
+        return max(0.0, 100.0 * self.coverage_fraction() - self.seam_penalty_percent())
 
     def can_bake(self) -> bool:
         return len(self.placed_cells()) > 0
