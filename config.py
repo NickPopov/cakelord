@@ -23,6 +23,9 @@ INVENTORY_Y = 600
 INVENTORY_SLOT_W = 96
 INVENTORY_SLOT_H = 96
 INVENTORY_PADDING = 8
+INVENTORY_MARGIN = 16          # left/right gap between bar edge and the slot viewport
+INVENTORY_SCROLLBAR_H = 10     # height of the horizontal scrollbar track
+INVENTORY_WHEEL_STEP = 104     # px scrolled per mouse-wheel notch (~one slot)
 
 STACK_ORIGIN = (40, 140)
 STACK_SLOT_H = 24
@@ -50,6 +53,9 @@ COLOR_DISCARD = (200, 100, 100)
 COLOR_DISCARD_HOVER = (230, 120, 120)
 COLOR_CUT_HINT = (255, 80, 80)
 COLOR_CUT_VALID = (80, 200, 80)
+COLOR_SCROLLBAR_TRACK = (200, 180, 150)
+COLOR_SCROLLBAR_THUMB = (160, 120, 60)
+COLOR_SCROLLBAR_THUMB_HOVER = (190, 145, 75)
 
 # --- Cake breaking (cuts can crack) ---
 # Break chance is interpolated by the cut piece's cell count between two anchors;

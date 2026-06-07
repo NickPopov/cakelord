@@ -180,7 +180,7 @@ class GameState:
                 shape.cells = prev_cells
                 shape.move_to(*prev_pos)
 
-    def release_drag(self, over_discard: bool) -> None:
+    def release_drag(self, over_discard: bool, over_inventory: bool = False) -> None:
         if self.dragging is None:
             return
         shape = self.dragging
@@ -188,6 +188,11 @@ class GameState:
         if over_discard:
             if shape in self.work_pieces:
                 self.work_pieces.remove(shape)
+            return
+        if over_inventory:
+            if shape in self.work_pieces:
+                self.work_pieces.remove(shape)
+                self.inventory.append(shape)
             return
         snapped = shape.snapped_position(TARGET_ORIGIN)
         prev = (shape.world_x, shape.world_y)

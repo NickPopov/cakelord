@@ -27,7 +27,7 @@ Crumbs come from two places:
 - **Cracked cuts** — cells shed when a cut cracks are kept as crumbs (the "lost N crumb(s)" you see on a crack).
 - **Leftover cakes** — when you win, any cakes still in the inventory or work area are swept up into crumbs.
 
-Discarded pieces (dropped on **DISCARD**) are thrown away and do **not** become crumbs.
+Discarded pieces (dropped on **DISCARD**) are thrown away and do **not** become crumbs. Pieces dropped back on the **inventory bar** are returned to your inventory intact (also not crumbed).
 
 ## Controls
 
@@ -38,6 +38,10 @@ Discarded pieces (dropped on **DISCARD**) are thrown away and do **not** become 
 - **B** (or click "Bake Layer") — bake the current layer. Allowed at any coverage above 0%; your coverage is recorded per layer, so aim to fill as much as possible.
 - **N** (or click "New Game") — start a new game.
 - Drop a piece on **DISCARD** to throw it away.
+- Drop a piece on the **inventory bar** to return it to your inventory (works for offcuts too).
+- **Scroll the inventory** — mouse wheel while hovering the bar, drag the scrollbar thumb, or click its track. The scrollbar appears only when the cakes overflow the bar.
+
+Each inventory slot shows the cake at its real play size, with a label reading its size as `N cells · WxH` (`N` = number of squares, `WxH` = bounding box) so you can tell, say, a 1×1 from a 3×3 at a glance.
 
 ## Run locally
 

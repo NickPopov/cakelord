@@ -42,6 +42,8 @@ class PlayScene:
         self.cut_message: str = ""
         self.cut_message_until: int = 0
         self.crumb_flashes: list = []  # (x, y, until_ms)
+        self.scrollbar_drag: bool = False
+        self.scrollbar_grab_dx: float = 0.0
 
     def _ensure_fonts(self) -> None:
         if self.font is None:
@@ -66,9 +68,18 @@ class PlayScene:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             self._handle_mouse_down(event)
         elif event.type == pygame.MOUSEMOTION:
-            if self.game.dragging is not None:
+            if self.scrollbar_drag:
+                self.inventory_bar.set_scroll_from_thumb_x(
+                    event.pos[0] - self.scrollbar_grab_dx, len(self.game.inventory)
+                )
+            elif self.game.dragging is not None:
                 mx, my = event.pos
                 self.game.update_drag(mx, my)
+        elif event.type == pygame.MOUSEWHEEL:
+            if self.inventory_bar.contains(pygame.mouse.get_pos()):
+                self.inventory_bar.scroll_by(
+                    -event.y * self.inventory_bar.wheel_step(), len(self.game.inventory)
+                )
         elif event.type == pygame.MOUSEBUTTONUP:
             self._handle_mouse_up(event)
 
@@ -92,6 +103,20 @@ class PlayScene:
             return
 
         if event.button != 1:
+            return
+
+        # Scrollbar: grab the thumb, or click the track to jump it under the cursor.
+        track = self.inventory_bar.scrollbar_rect()
+        thumb = self.inventory_bar.thumb_rect(len(self.game.inventory))
+        if thumb is not None and track.collidepoint(event.pos):
+            if thumb.collidepoint(event.pos):
+                self.scrollbar_grab_dx = event.pos[0] - thumb.x
+            else:
+                self.scrollbar_grab_dx = thumb.width / 2
+                self.inventory_bar.set_scroll_from_thumb_x(
+                    event.pos[0] - self.scrollbar_grab_dx, len(self.game.inventory)
+                )
+            self.scrollbar_drag = True
             return
 
         idx = self.inventory_bar.slot_at_point(event.pos, len(self.game.inventory))
@@ -123,10 +148,14 @@ class PlayScene:
                 self.game.grab_work_piece(shape, mx, my)
 
     def _handle_mouse_up(self, event: pygame.event.Event) -> None:
+        if self.scrollbar_drag:
+            self.scrollbar_drag = False
+            return
         if self.game.dragging is None:
             return
         over_discard = self.discard.contains(event.pos)
-        self.game.release_drag(over_discard)
+        over_inventory = self.inventory_bar.contains(event.pos)
+        self.game.release_drag(over_discard, over_inventory)
 
     def _try_bake(self) -> None:
         if self.game.bake_layer():
@@ -149,7 +178,7 @@ class PlayScene:
 
         title = self.big_font.render("Napoleon Cake Builder", True, COLOR_TEXT)
         surface.blit(title, (260, 30))
-        help_text = "L-drag: move  •  R: rotate  •  C: cut (cakes can crack!)  •  B: bake (any coverage)"
+        help_text = "L-drag: move  •  R: rotate  •  C: cut (cakes can crack!)  •  B: bake  •  drop on inventory to return"
         help_surf = self.font.render(help_text, True, COLOR_TEXT)
         surface.blit(help_surf, (260, 75))
 
@@ -200,7 +229,7 @@ class PlayScene:
             surface.blit(msg_surf, msg_surf.get_rect(center=(SCREEN_W // 2, 110)))
 
         self.discard.draw(surface, self.font, mouse_pos)
-        self.inventory_bar.draw(surface, self.game.inventory, self.font)
+        self.inventory_bar.draw(surface, self.game.inventory, self.font, mouse_pos)
         self.stack_view.draw(surface, self.game.layers_done, self.game.layer_coverages, self.font)
         self.cut_button.draw(surface, self.font, mouse_pos)
         self.bake_button.draw(surface, self.font, mouse_pos)
