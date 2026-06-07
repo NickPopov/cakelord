@@ -97,8 +97,11 @@ class PlayScene:
             return
 
         shape = self.game.find_shape_at(event.pos)
-        if shape is not None and shape in self.game.work_pieces:
-            self.game.grab_work_piece(shape, mx, my)
+        if shape is not None:
+            if shape in self.game.placed_pieces:
+                self.game.grab_placed_piece(shape, mx, my)
+            elif shape in self.game.work_pieces:
+                self.game.grab_work_piece(shape, mx, my)
 
     def _handle_mouse_up(self, event: pygame.event.Event) -> None:
         if self.game.dragging is None:
@@ -126,7 +129,7 @@ class PlayScene:
 
         title = self.big_font.render("Napoleon Cake Builder", True, COLOR_TEXT)
         surface.blit(title, (260, 30))
-        help_text = "L-drag: move  •  R: rotate  •  R-click: unsnap  •  C: cut  •  B: bake (any coverage)"
+        help_text = "L-drag: move/replace any piece  •  R: rotate  •  C: cut  •  B: bake (any coverage)"
         help_surf = self.font.render(help_text, True, COLOR_TEXT)
         surface.blit(help_surf, (260, 75))
 
