@@ -221,7 +221,7 @@ class GameState:
         return BREAK_CHANCE_SMALL + t * (BREAK_CHANCE_LARGE - BREAK_CHANCE_SMALL)
 
     def try_cut(self, shape: PolyominoShape, point: Tuple[float, float], max_dist: float) -> CutOutcome:
-        cut = shape.closest_cut(point, max_dist)
+        cut = shape.cut_at(point, max_dist)
         if cut is None:
             return CutOutcome(success=False)
 
@@ -262,7 +262,6 @@ class GameState:
         else:
             container.pop(idx)
             target_container = container
-        from shape import CutDirection
         # First piece stays put; subsequent pieces nudge to remain visible.
         for k, p in enumerate(pieces):
             if k > 0:

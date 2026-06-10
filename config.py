@@ -64,7 +64,7 @@ BREAK_SMALL_SIZE = 4       # <= this many cells -> BREAK_CHANCE_SMALL
 BREAK_LARGE_SIZE = 24      # >= this many cells -> BREAK_CHANCE_LARGE
 BREAK_CHANCE_SMALL = 0.6   # fragile small offcuts
 BREAK_CHANCE_LARGE = 0.1   # sturdier big cakes
-BREAK_JAGGEDNESS = 2       # max per-line deviation of a cracked cut (cells)
+BREAK_JAGGEDNESS = 2       # how far (cells, Manhattan) from the seam crumbs may chip
 BREAK_CRUMB_CHANCE = 0.5   # given a break, chance that cells also crumble away
 BREAK_CRUMB_MAX = 2        # max cells lost to crumbs
 

@@ -5,6 +5,7 @@ only, so swapping in a free-polygon implementation later only touches this file
 and shape_factory.py.
 """
 
+import math
 from abc import ABC, abstractmethod
 from typing import Iterable, List, Optional, Set, Tuple
 
@@ -28,15 +29,34 @@ class CutDirection:
 
 
 class Cut:
-    """A straight axis-aligned cut across a shape, in shape-local cell units.
+    """A cut along one contiguous run ("island") where a straight grid line
+    crosses the cake, in shape-local cell units.
 
-    For HORIZONTAL: ``line`` is the j-index — separates cells with j < line
-    from cells with j >= line. For VERTICAL: same but for i-index.
+    A straight line can cross the cake in several disjoint runs when gaps leave
+    cake on both sides at separate spans; each run is its own cut, so cutting
+    one island leaves the others intact. ``span_lo``..``span_hi`` (inclusive) is
+    the run severed:
+
+    HORIZONTAL: the line at j == ``line`` severs each vertical seam
+    ``(s, line - 1)`` / ``(s, line)`` for s in the span. VERTICAL: the line at
+    i == ``line`` severs each horizontal seam ``(line - 1, s)`` / ``(line, s)``.
     """
 
-    def __init__(self, direction: str, line: int):
+    def __init__(self, direction: str, line: int, span_lo: int, span_hi: int):
         self.direction = direction
         self.line = line
+        self.span_lo = span_lo
+        self.span_hi = span_hi
+
+    def severed_pairs(self) -> List[Tuple[CellCoord, CellCoord]]:
+        """Every adjacent cell pair whose shared edge this cut severs."""
+        pairs: List[Tuple[CellCoord, CellCoord]] = []
+        for s in range(self.span_lo, self.span_hi + 1):
+            if self.direction == CutDirection.HORIZONTAL:
+                pairs.append(((s, self.line - 1), (s, self.line)))
+            else:
+                pairs.append(((self.line - 1, s), (self.line, s)))
+        return pairs
 
 
 class Shape(ABC):
@@ -161,62 +181,103 @@ class PolyominoShape(Shape):
         return (max_i - min_i + 1, max_j - min_j + 1)
 
     def candidate_cuts(self) -> List[Cut]:
+        """One cut per island: each maximal contiguous run where a grid line
+        crosses the cake (cake present on both sides of the line at that span)."""
+        cuts: List[Cut] = []
         if not self.cells:
-            return []
+            return cuts
         i_values = {i for i, _ in self.cells}
         j_values = {j for _, j in self.cells}
-        cuts: List[Cut] = []
-        for J in range(min(j_values) + 1, max(j_values) + 1):
-            if any(j < J for j in j_values) and any(j >= J for j in j_values):
-                cuts.append(Cut(CutDirection.HORIZONTAL, J))
-        for I in range(min(i_values) + 1, max(i_values) + 1):
-            if any(i < I for i in i_values) and any(i >= I for i in i_values):
-                cuts.append(Cut(CutDirection.VERTICAL, I))
+        for line in range(min(j_values) + 1, max(j_values) + 1):
+            crossable = sorted(
+                i for (i, j) in self.cells if j == line and (i, line - 1) in self.cells
+            )
+            for lo, hi in _contiguous_runs(crossable):
+                cuts.append(Cut(CutDirection.HORIZONTAL, line, lo, hi))
+        for line in range(min(i_values) + 1, max(i_values) + 1):
+            crossable = sorted(
+                j for (i, j) in self.cells if i == line and (line - 1, j) in self.cells
+            )
+            for lo, hi in _contiguous_runs(crossable):
+                cuts.append(Cut(CutDirection.VERTICAL, line, lo, hi))
         return cuts
 
     def cut_hint_segment(self, cut: Cut) -> Tuple[Tuple[float, float], Tuple[float, float]]:
-        bb = self.bounding_box()
+        """The segment drawn for ``cut`` — spans only the island being cut."""
         if cut.direction == CutDirection.HORIZONTAL:
             y = self.world_y + cut.line * GRID_CELL
-            return ((bb.left, y), (bb.right, y))
+            x1 = self.world_x + cut.span_lo * GRID_CELL
+            x2 = self.world_x + (cut.span_hi + 1) * GRID_CELL
+            return ((x1, y), (x2, y))
         x = self.world_x + cut.line * GRID_CELL
-        return ((x, bb.top), (x, bb.bottom))
+        y1 = self.world_y + cut.span_lo * GRID_CELL
+        y2 = self.world_y + (cut.span_hi + 1) * GRID_CELL
+        return ((x, y1), (x, y2))
 
     def closest_cut(self, point: Tuple[float, float], max_dist: float) -> Optional[Cut]:
-        """Find the cut whose line is closest to ``point`` (within max_dist px)."""
+        """Find the island whose segment is closest to ``point`` (within max_dist px)."""
         best: Optional[Cut] = None
         best_d = max_dist
-        px, py = point
         for cut in self.candidate_cuts():
-            (x1, y1), (x2, y2) = self.cut_hint_segment(cut)
-            if cut.direction == CutDirection.HORIZONTAL:
-                if x1 <= px <= x2:
-                    d = abs(py - y1)
-                else:
-                    continue
-            else:
-                if y1 <= py <= y2:
-                    d = abs(px - x1)
-                else:
-                    continue
+            a, b = self.cut_hint_segment(cut)
+            d = _point_segment_dist(point, a, b)
             if d < best_d:
                 best_d = d
                 best = cut
         return best
 
-    def apply_cut(self, cut: Cut) -> List["PolyominoShape"]:
+    def widen_cut_to_separate(self, cut: Cut) -> Optional[Cut]:
+        """Grow ``cut``'s span outward — adding the nearest island each step
+        (gaps between have no seam, so they sever nothing) — until the cut
+        actually divides the cake, then stop. Returns the minimal widened cut,
+        or ``None`` if no extent along this line can separate it."""
         if cut.direction == CutDirection.HORIZONTAL:
-            side_a = {(i, j) for i, j in self.cells if j < cut.line}
-            side_b = {(i, j) for i, j in self.cells if j >= cut.line}
+            crossable = sorted(
+                i for (i, j) in self.cells if j == cut.line and (i, cut.line - 1) in self.cells
+            )
         else:
-            side_a = {(i, j) for i, j in self.cells if i < cut.line}
-            side_b = {(i, j) for i, j in self.cells if i >= cut.line}
+            crossable = sorted(
+                j for (i, j) in self.cells if i == cut.line and (cut.line - 1, j) in self.cells
+            )
+        lo, hi = cut.span_lo, cut.span_hi
+        while True:
+            candidate = Cut(cut.direction, cut.line, lo, hi)
+            if len(self.apply_cut(candidate)) >= 2:
+                return candidate
+            below = [s for s in crossable if s < lo]
+            above = [s for s in crossable if s > hi]
+            if not below and not above:
+                return None
+            # Add whichever neighbouring island is closer to the current span.
+            if below and (not above or (lo - below[-1]) <= (above[0] - hi)):
+                lo = below[-1]
+            else:
+                hi = above[0]
 
+    def cut_at(self, point: Tuple[float, float], max_dist: float) -> Optional[Cut]:
+        """The cut a click performs: the nearest island, but minimally widened
+        (toward the nearest island) when cutting that island alone wouldn't
+        divide the cake — e.g. a ring loops around the gap, so one island isn't
+        enough but the donut still splits in one click without disturbing
+        unrelated islands further along the line."""
+        cut = self.closest_cut(point, max_dist)
+        if cut is None:
+            return None
+        if len(self.apply_cut(cut)) < 2:
+            widened = self.widen_cut_to_separate(cut)
+            if widened is not None:
+                return widened
+        return cut
+
+    def apply_cut(self, cut: Cut) -> List["PolyominoShape"]:
+        """Sever every seam in the cut island and re-split into connected
+        components. Other islands on the same line stay intact, so this yields
+        more than one piece only if cutting this island disconnects the cake."""
+        broken = {frozenset(p) for p in cut.severed_pairs()}
         pieces: List[PolyominoShape] = []
-        for group in (side_a, side_b):
-            for comp in _connected_components(group):
-                if comp:
-                    pieces.append(PolyominoShape(comp, self.world_x, self.world_y))
+        for comp in _connected_components(self.cells, broken_edges=broken):
+            if comp:
+                pieces.append(PolyominoShape(comp, self.world_x, self.world_y))
         return pieces
 
     def apply_broken_cut(
@@ -227,62 +288,43 @@ class PolyominoShape(Shape):
         crumb_chance: float,
         crumb_max: int,
     ) -> Tuple[List["PolyominoShape"], List[CellCoord]]:
-        """Cut along a jagged (cracked) seam instead of a straight line, and
-        optionally shed a few cells as crumbs.
+        """Cracked variant of a single-seam cut: sever the seam, then shed a few
+        cells off the fragile (smaller) offcut as crumbs.
 
         Returns (pieces, lost_cells). lost_cells are in shape-local coordinates.
-        If the jagged seam fails to produce at least 2 pieces, returns ([], [])
+        ``jaggedness`` widens how far from the seam crumbs may chip away. If the
+        island doesn't separate the shape into at least 2 pieces, returns ([], [])
         so the caller can fall back to a clean cut.
         """
-        horizontal = cut.direction == CutDirection.HORIZONTAL
-        # The seam runs along the axis perpendicular to the cut's split axis.
-        # For a horizontal cut (split on j) the seam wanders per-column (i).
-        keys = sorted({(i if horizontal else j) for (i, j) in self.cells})
-        offsets: dict = {}
-        off = rng.randint(-jaggedness, jaggedness) if jaggedness > 0 else 0
-        for k in keys:
-            offsets[k] = off
-            if jaggedness > 0:
-                off = max(-jaggedness, min(jaggedness, off + rng.choice((-1, 0, 1))))
-
-        side_a: Set[CellCoord] = set()
-        side_b: Set[CellCoord] = set()
-        for (i, j) in self.cells:
-            if horizontal:
-                line = cut.line + offsets[i]
-                (side_a if j < line else side_b).add((i, j))
-            else:
-                line = cut.line + offsets[j]
-                (side_a if i < line else side_b).add((i, j))
-
-        if not side_a or not side_b:
+        broken = {frozenset(p) for p in cut.severed_pairs()}
+        comps = [c for c in _connected_components(self.cells, broken_edges=broken) if c]
+        if len(comps) < 2:
             return [], []
 
-        # Crumbs fall from cells that sit right against the seam.
+        # The smaller offcut is the fragile part the crumbs chip away from. Keep
+        # at least one cell so the cut still yields a real piece, never dust.
+        comps.sort(key=len)
         lost: List[CellCoord] = []
         if crumb_max > 0 and rng.random() < crumb_chance:
-            boundary: List[CellCoord] = []
-            for (i, j) in side_a:
-                for n in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)):
-                    if n in side_b:
-                        boundary.append((i, j))
-                        break
-            for (i, j) in side_b:
-                for n in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)):
-                    if n in side_a:
-                        boundary.append((i, j))
-                        break
-            rng.shuffle(boundary)
-            for cell in boundary[: rng.randint(1, crumb_max)]:
+            small = comps[0]
+            seam_cells = {c for pair in cut.severed_pairs() for c in pair if c in small}
+            # Chip cells nearest the severed seam first, within the jagged reach.
+            reach = max(1, jaggedness)
+            near = [
+                c for c in small
+                if any(abs(c[0] - s[0]) + abs(c[1] - s[1]) <= reach for s in seam_cells)
+            ]
+            rng.shuffle(near)
+            budget = min(crumb_max, len(small) - 1)
+            for cell in near[:budget]:
                 lost.append(cell)
-                side_a.discard(cell)
-                side_b.discard(cell)
+                small.discard(cell)
 
         pieces: List[PolyominoShape] = []
-        for group in (side_a, side_b):
-            for comp in _connected_components(group):
-                if comp:
-                    pieces.append(PolyominoShape(comp, self.world_x, self.world_y))
+        for comp in comps:
+            for sub in _connected_components(comp):
+                if sub:
+                    pieces.append(PolyominoShape(sub, self.world_x, self.world_y))
         if len(pieces) < 2:
             return [], []
         return pieces, lost
@@ -325,7 +367,39 @@ class PolyominoShape(Shape):
         return {(i + gx, j + gy) for (i, j) in self.cells}
 
 
-def _connected_components(cells: Set[CellCoord]) -> List[Set[CellCoord]]:
+def _point_segment_dist(
+    p: Tuple[float, float], a: Tuple[float, float], b: Tuple[float, float]
+) -> float:
+    """Shortest distance from point ``p`` to segment ``a``-``b``."""
+    px, py = p
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    if dx == 0 and dy == 0:
+        return math.hypot(px - ax, py - ay)
+    t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
+    t = max(0.0, min(1.0, t))
+    cx, cy = ax + t * dx, ay + t * dy
+    return math.hypot(px - cx, py - cy)
+
+
+def _contiguous_runs(values: List[int]) -> List[Tuple[int, int]]:
+    """Maximal runs of consecutive integers in a sorted list, as (lo, hi)."""
+    runs: List[List[int]] = []
+    for v in values:
+        if runs and v == runs[-1][1] + 1:
+            runs[-1][1] = v
+        else:
+            runs.append([v, v])
+    return [(lo, hi) for lo, hi in runs]
+
+
+def _connected_components(
+    cells: Set[CellCoord],
+    broken_edges: Optional[Set[frozenset]] = None,
+) -> List[Set[CellCoord]]:
+    """Connected components under 4-adjacency. Any cell pair in ``broken_edges``
+    (each a ``frozenset`` of two cells) is treated as not adjacent (severed)."""
     remaining = set(cells)
     components: List[Set[CellCoord]] = []
     while remaining:
@@ -341,6 +415,8 @@ def _connected_components(cells: Set[CellCoord]) -> List[Set[CellCoord]]:
             i, j = c
             for n in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)):
                 if n in remaining:
+                    if broken_edges and frozenset((c, n)) in broken_edges:
+                        continue  # severed seam: don't traverse this edge
                     stack.append(n)
         components.append(comp)
     return components

@@ -205,7 +205,7 @@ class PlayScene:
         if self.game.mode == Mode.CUT and self.game.dragging is None:
             shape = self.game.find_shape_at(mouse_pos)
             if shape is not None:
-                cut = shape.closest_cut(mouse_pos, max_dist=GRID_CELL / 2)
+                cut = shape.cut_at(mouse_pos, max_dist=GRID_CELL / 2)
                 if cut is not None:
                     (x1, y1), (x2, y2) = shape.cut_hint_segment(cut)
                     pygame.draw.line(surface, COLOR_CUT_HINT, (x1, y1), (x2, y2), 4)
