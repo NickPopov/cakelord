@@ -269,9 +269,11 @@ class GameState:
             target_container.append(p)
         crumbs_lost = len(crumb_world_cells)
         self.crumbs += crumbs_lost
+        # A "crack" the player can't see (a break that shed no crumbs) is
+        # indistinguishable from a clean cut, so don't report it as one.
         return CutOutcome(
             success=True,
-            broke=broke,
+            broke=crumbs_lost > 0,
             crumbs_lost=crumbs_lost,
             crumb_world_cells=crumb_world_cells,
         )

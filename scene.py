@@ -130,10 +130,7 @@ class PlayScene:
                 outcome = self.game.try_cut(shape, event.pos, max_dist=GRID_CELL / 2)
                 if outcome.broke:
                     now = pygame.time.get_ticks()
-                    if outcome.crumbs_lost:
-                        self.cut_message = f"Cracked! lost {outcome.crumbs_lost} crumb(s)"
-                    else:
-                        self.cut_message = "Cracked!"
+                    self.cut_message = f"Cracked! lost {outcome.crumbs_lost} crumb(s)"
                     self.cut_message_until = now + CUT_MESSAGE_MS
                     self.crumb_flashes = [
                         (x, y, now + CRUMB_FLASH_MS) for (x, y) in outcome.crumb_world_cells
