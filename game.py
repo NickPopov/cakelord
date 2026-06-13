@@ -161,29 +161,32 @@ class GameState:
         dx, dy = self.drag_offset
         self.dragging.move_to(mouse_x + dx, mouse_y + dy)
 
-    # ----- Rotation -----
+    # ----- Rotation / Flip -----
 
     @staticmethod
-    def _rotate_keeping_center(shape: PolyominoShape) -> None:
+    def _transform_keeping_center(shape: PolyominoShape, transform: str) -> None:
         bb = shape.bounding_box()
         cx, cy = bb.center
-        shape.rotate(clockwise=True)
+        if transform == "rotate":
+            shape.rotate(clockwise=True)
+        else:
+            shape.flip()
         nb = shape.bounding_box()
         shape.move_by(cx - nb.centerx, cy - nb.centery)
 
-    def rotate_dragging(self, mouse_x: float, mouse_y: float) -> None:
+    def _transform_dragging(self, transform: str, mouse_x: float, mouse_y: float) -> None:
         if self.dragging is None:
             return
-        self._rotate_keeping_center(self.dragging)
+        self._transform_keeping_center(self.dragging, transform)
         self.drag_offset = (self.dragging.world_x - mouse_x, self.dragging.world_y - mouse_y)
 
-    def rotate_under_cursor(self, point: Tuple[float, float]) -> None:
+    def _transform_under_cursor(self, transform: str, point: Tuple[float, float]) -> None:
         shape = self.find_shape_at(point)
         if shape is None:
             return
         prev_cells = set(shape.cells)
         prev_pos = (shape.world_x, shape.world_y)
-        self._rotate_keeping_center(shape)
+        self._transform_keeping_center(shape, transform)
         if shape in self.placed_pieces:
             snapped = shape.snapped_position(TARGET_ORIGIN)
             shape.move_to(*snapped)
@@ -194,6 +197,18 @@ class GameState:
             if not (within and no_overlap):
                 shape.cells = prev_cells
                 shape.move_to(*prev_pos)
+
+    def rotate_dragging(self, mouse_x: float, mouse_y: float) -> None:
+        self._transform_dragging("rotate", mouse_x, mouse_y)
+
+    def rotate_under_cursor(self, point: Tuple[float, float]) -> None:
+        self._transform_under_cursor("rotate", point)
+
+    def flip_dragging(self, mouse_x: float, mouse_y: float) -> None:
+        self._transform_dragging("flip", mouse_x, mouse_y)
+
+    def flip_under_cursor(self, point: Tuple[float, float]) -> None:
+        self._transform_under_cursor("flip", point)
 
     def release_drag(self, over_inventory: bool = False) -> None:
         if self.dragging is None:

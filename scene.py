@@ -85,6 +85,12 @@ class PlayScene:
                     self.game.rotate_dragging(mx, my)
                 else:
                     self.game.rotate_under_cursor((mx, my))
+            elif event.key == pygame.K_f:
+                mx, my = pygame.mouse.get_pos()
+                if self.game.dragging is not None:
+                    self.game.flip_dragging(mx, my)
+                else:
+                    self.game.flip_under_cursor((mx, my))
             elif event.key == pygame.K_n:
                 self.game = GameState()
         elif event.type == pygame.MOUSEBUTTONDOWN:

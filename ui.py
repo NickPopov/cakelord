@@ -67,6 +67,7 @@ def draw_help_overlay(surface: pygame.Surface, font: pygame.font.Font,
     lines = [
         "L-drag: move piece",
         "R: rotate active / hovered piece",
+        "F: flip active / hovered piece",
         "Right-click: return piece to inventory",
         "C: toggle cut mode (cuts can crack)",
         "D: finish layer     N: new game",

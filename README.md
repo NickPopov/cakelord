@@ -33,6 +33,7 @@ Discarded pieces (dropped on **DISCARD**) are thrown away and do **not** become 
 
 - **Left-click + drag** — grab a cake from the inventory or move a piece in the work area.
 - **R** — rotate the piece you're dragging (or hovering over) by 90°.
+- **F** — flip (mirror horizontally) the piece you're dragging (or hovering over).
 - **Right-click** on a placed piece — unsnap it from the target rectangle.
 - **C** (or click "Cut Mode") — toggle cut mode. In cut mode, hover over a piece to preview the cut line, then click to cut. Cuts can crack — watch for the "Cracked!" message and the crumb flash where cells fall off.
 - **B** (or click "Bake Layer") — bake the current layer. Allowed at any coverage above 0%; your coverage is recorded per layer, so aim to fill as much as possible.

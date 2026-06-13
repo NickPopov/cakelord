@@ -344,6 +344,18 @@ class PolyominoShape(Shape):
         mj = min(j for _, j in rotated)
         self.cells = {(i - mi, j - mj) for (i, j) in rotated}
 
+    def flip(self) -> None:
+        """Mirror cells horizontally and re-normalize so min i/j = 0.
+
+        World position is unchanged here; callers that want to keep the piece
+        centered (e.g. under the cursor) adjust world position afterwards."""
+        if not self.cells:
+            return
+        flipped = {(-i, j) for (i, j) in self.cells}
+        mi = min(i for i, _ in flipped)
+        mj = min(j for _, j in flipped)
+        self.cells = {(i - mi, j - mj) for (i, j) in flipped}
+
     def move_by(self, dx: float, dy: float) -> None:
         self.world_x += dx
         self.world_y += dy
