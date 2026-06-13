@@ -30,7 +30,7 @@ jobs:
         run: pip install pygbag
 
       - name: Build web bundle
-        run: pygbag --build main.py
+        run: pygbag --build --template cakelord.tmpl main.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
