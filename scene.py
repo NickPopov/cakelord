@@ -64,9 +64,9 @@ class PlayScene:
                 self.show_help = not self.show_help
             elif event.key == pygame.K_ESCAPE:
                 self.show_help = False
-            elif event.key == pygame.K_BACKSPACE:
+            elif event.key == pygame.K_c:
                 self.game.toggle_mode()
-            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            elif event.key == pygame.K_d:
                 self._try_bake()
             elif event.key == pygame.K_r:
                 mx, my = pygame.mouse.get_pos()
