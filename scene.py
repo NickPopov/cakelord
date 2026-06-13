@@ -1,5 +1,6 @@
 """Scenes: PlayScene (main gameplay) and WinScene (victory screen)."""
 
+import math
 from typing import Optional
 
 import pygame
@@ -8,17 +9,25 @@ from config import (
     COLOR_BG,
     COLOR_CAKE_HOVER,
     COLOR_CRUMB,
+    COLOR_CRUMB_PULSE,
     COLOR_CUT_HINT,
     COLOR_CUT_VALID,
     COLOR_PLACED_FILL,
     COLOR_TEXT,
-    CRUMB_FLASH_MS,
+    CRUMB_FLY_MS,
     CRUMB_GOAL,
+    CRUMB_HUD_TARGET,
+    CRUMB_PARTICLE_SIZE,
+    CRUMB_PARTICLES_PER_CELL,
+    CRUMB_PULSE_MS,
+    CRUMB_PULSE_SCALE,
     CUT_MESSAGE_MS,
     GRID_CELL,
     LAYERS_NEEDED,
     SCREEN_H,
     SCREEN_W,
+    TARGET_ORIGIN,
+    TARGET_W,
 )
 from game import GameState, Mode
 from ui import (
@@ -48,7 +57,9 @@ class PlayScene:
         self.win_layer_coverages: list = []
         self.cut_message: str = ""
         self.cut_message_until: int = 0
-        self.crumb_flashes: list = []  # (x, y, until_ms)
+        self.crumb_particles: list = []  # (origin_x, origin_y, spawn_ms) shards flying to the HUD
+        self.crumb_display: int = 0      # crumb count shown in the HUD (lags game.crumbs)
+        self.crumb_pulse_until: int = 0  # ms timestamp the Crumbs-label pulse ends
         self.scrollbar_drag: bool = False
         self.scrollbar_grab_dx: float = 0.0
 
@@ -153,9 +164,9 @@ class PlayScene:
                     now = pygame.time.get_ticks()
                     self.cut_message = f"Cracked! lost {outcome.crumbs_lost} crumb(s)"
                     self.cut_message_until = now + CUT_MESSAGE_MS
-                    self.crumb_flashes = [
-                        (x, y, now + CRUMB_FLASH_MS) for (x, y) in outcome.crumb_world_cells
-                    ]
+                    self.crumb_particles.extend(
+                        (x, y, now) for (x, y) in outcome.crumb_world_cells
+                    )
             return
 
         if shape_under is not None:
@@ -186,10 +197,73 @@ class PlayScene:
         self.cut_button.label = f"Cut: {on_off}"
         self.bake_button.enabled = self.game.can_bake()
 
+    def _draw_crumb_label(self, surface: pygame.Surface, now: int) -> None:
+        """Crumbs HUD line. Shows the lagging ``crumb_display`` count and, while a
+        pulse is active, grows + recolors before settling back to plain text."""
+        decor = self.game.decoration_coverage_percent()
+        text = f"Crumbs: {self.crumb_display}/{CRUMB_GOAL}  Decoration: {decor:.0f}%"
+        pos = (24, 318)
+        if now >= self.crumb_pulse_until:
+            surface.blit(self.font.render(text, True, COLOR_TEXT), pos)
+            return
+        p = (self.crumb_pulse_until - now) / CRUMB_PULSE_MS  # 1 -> 0 over the pulse
+        scale = 1.0 + (CRUMB_PULSE_SCALE - 1.0) * p
+        color = tuple(
+            int(COLOR_TEXT[i] + (COLOR_CRUMB_PULSE[i] - COLOR_TEXT[i]) * p) for i in range(3)
+        )
+        base = self.font.render(text, True, color)
+        w = max(1, int(base.get_width() * scale))
+        h = max(1, int(base.get_height() * scale))
+        grown = pygame.transform.smoothscale(base, (w, h))
+        # Anchor at the label's left edge, vertically centered on its resting line,
+        # so the text balloons in place and shrinks back without shifting.
+        base_cy = pos[1] + base.get_height() / 2
+        surface.blit(grown, (pos[0], int(base_cy - h / 2)))
+
+    def _draw_crumb_particles(self, surface: pygame.Surface, now: int) -> None:
+        """Advance the flying crumb shards. Each event (one per lost cell) flies from
+        its cake cell to the Crumbs label; on arrival it ticks the counter and pulses
+        the label, then is dropped."""
+        if not self.crumb_particles:
+            return
+        tx, ty = CRUMB_HUD_TARGET
+        survivors = []
+        for (ox, oy, spawn) in self.crumb_particles:
+            t = (now - spawn) / CRUMB_FLY_MS
+            if t >= 1.0:
+                self.crumb_display = min(self.crumb_display + 1, self.game.crumbs)
+                self.crumb_pulse_until = now + CRUMB_PULSE_MS
+                continue
+            survivors.append((ox, oy, spawn))
+            # Cell center -> label, accelerating toward it (ease-in).
+            e = t * t
+            src_x, src_y = ox + GRID_CELL / 2, oy + GRID_CELL / 2
+            cx = src_x + (tx - src_x) * e
+            cy = src_y + (ty - src_y) * e
+            spread = (1.0 - t) * GRID_CELL * 0.4   # shards scatter, then converge
+            phase = (ox + oy) * 0.05               # per-cell so clouds differ, but stable
+            alpha = max(0, min(255, int(255 * min(1.0, 2.0 * (1.0 - t)))))
+            size = max(2, int(CRUMB_PARTICLE_SIZE * (1.0 - 0.4 * t)))
+            shard = pygame.Surface((size, size), pygame.SRCALPHA)
+            shard.fill((*COLOR_CRUMB, alpha))
+            for k in range(CRUMB_PARTICLES_PER_CELL):
+                ang = 2 * math.pi * k / CRUMB_PARTICLES_PER_CELL + phase
+                sx = cx + math.cos(ang) * spread
+                sy = cy + math.sin(ang) * spread
+                surface.blit(shard, (int(sx - size / 2), int(sy - size / 2)))
+        self.crumb_particles = survivors
+
     def render(self, surface: pygame.Surface) -> None:
         self._ensure_fonts()
         self._update_button_state()
         mouse_pos = pygame.mouse.get_pos()
+        now = pygame.time.get_ticks()
+
+        # With no shards in flight, snap the displayed count to the model. This
+        # catches crumb sources that spawn no shards (the win-time leftover sweep)
+        # and the New Game reset (game.crumbs back to 0).
+        if not self.crumb_particles and self.crumb_display != self.game.crumbs:
+            self.crumb_display = self.game.crumbs
 
         surface.fill(COLOR_BG)
 
@@ -206,13 +280,7 @@ class PlayScene:
         cov_color = COLOR_CUT_VALID if complete else COLOR_TEXT
         cov_surf = self.font.render(f"Coverage: {pct:.0f}%", True, cov_color)
         surface.blit(cov_surf, (336, 76))
-        decor = self.game.decoration_coverage_percent()
-        crumb_surf = self.font.render(
-            f"Crumbs: {self.game.crumbs}/{CRUMB_GOAL}  Decoration: {decor:.0f}%",
-            True,
-            COLOR_TEXT,
-        )
-        surface.blit(crumb_surf, (24, 318))
+        self._draw_crumb_label(surface, now)
         # A cake under the cursor takes click priority over the buttons, so don't
         # highlight a button while a piece is covering it.
         btn_hoverable = self.game.find_shape_at(mouse_pos) is None
@@ -232,14 +300,7 @@ class PlayScene:
             # Drawn last so it floats above the inventory bar when returning a piece.
             self.game.dragging.render(surface, override_color=COLOR_CAKE_HOVER)
 
-        now = pygame.time.get_ticks()
-        if self.crumb_flashes:
-            self.crumb_flashes = [(x, y, u) for (x, y, u) in self.crumb_flashes if u > now]
-            for (x, y, until) in self.crumb_flashes:
-                alpha = max(0, min(255, int(255 * (until - now) / CRUMB_FLASH_MS)))
-                crumb = pygame.Surface((GRID_CELL, GRID_CELL), pygame.SRCALPHA)
-                crumb.fill((*COLOR_CRUMB, alpha))
-                surface.blit(crumb, (x, y))
+        self._draw_crumb_particles(surface, now)
 
         if self.game.mode == Mode.CUT and self.game.dragging is None:
             shape = self.game.find_shape_at(mouse_pos)
@@ -251,7 +312,8 @@ class PlayScene:
 
         if self.cut_message and now < self.cut_message_until:
             msg_surf = self.big_font.render(self.cut_message, True, COLOR_CUT_HINT)
-            surface.blit(msg_surf, msg_surf.get_rect(center=(SCREEN_W // 2, 110)))
+            target_cx = TARGET_ORIGIN[0] + TARGET_W * GRID_CELL // 2
+            surface.blit(msg_surf, msg_surf.get_rect(center=(target_cx, 50)))
 
         if self.show_help:
             draw_help_overlay(surface, self.font, self.big_font)

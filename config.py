@@ -73,5 +73,14 @@ COLOR_CRUMB = (120, 70, 30)  # crumb flash color
 CRUMB_FLASH_MS = 800
 CUT_MESSAGE_MS = 2000
 
+# --- Crumb fly-to-HUD animation ---
+CRUMB_FLY_MS = 600              # shard flight time to the Crumbs label
+CRUMB_PARTICLES_PER_CELL = 4    # shards spawned per lost cell
+CRUMB_PARTICLE_SIZE = 8         # px, shard square edge
+CRUMB_HUD_TARGET = (30, 326)    # screen px the shards converge on (Crumbs label)
+CRUMB_PULSE_MS = 450            # label grow/recolor pulse duration
+CRUMB_PULSE_SCALE = 1.6         # peak label scale during the pulse
+COLOR_CRUMB_PULSE = (200, 120, 40)  # label color at pulse peak
+
 # --- Crumbs resource (decorate the napoleon top) ---
 CRUMB_GOAL = TARGET_W * TARGET_H   # 24 crumb units fully decorate the napoleon top
