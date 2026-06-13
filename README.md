@@ -55,10 +55,19 @@ python main.py
 From the project root:
 
 ```bash
-pygbag main.py
+python -m pygbag --bind 127.0.0.1 --port 8000 main.py
 ```
 
-This opens a local web server (default `http://localhost:8000`) where the game runs inside the browser.
+This opens a local web server where the game runs inside the browser. Visit
+**`http://127.0.0.1:8000`**.
+
+> **Windows note:** use `http://127.0.0.1:8000`, not `http://localhost:8000`.
+> On Windows 11, `localhost` resolves to IPv6 (`::1`) first, but pygbag's dev
+> server only listens on IPv4, so the `localhost` URL gives a
+> connection-refused error even though the server is running. Invoke it as
+> `python -m pygbag ...` rather than the bare `pygbag` command (and don't be
+> alarmed that `pygbag --version` errors — pygbag treats the last argument as
+> the app directory).
 
 To produce a static build for deployment:
 
