@@ -1,7 +1,7 @@
 """Game configuration constants."""
 
 SCREEN_W = 1024
-SCREEN_H = 768
+SCREEN_H = 590
 FPS = 60
 
 GRID_CELL = 48
@@ -17,9 +17,11 @@ CAKE_SIZE_MAX = 28
 TOTAL_CAKES = 9
 LAYERS_NEEDED = 8
 
-TARGET_ORIGIN = (320, 140)
+TARGET_ORIGIN = (336, 106)    # center column (target spans x 336-624, y 106-298)
+# The right column (x ~680-1008) is intentionally left empty as free space for
+# rotating/cutting pieces before placing them.
 
-INVENTORY_Y = 600
+INVENTORY_Y = 452
 INVENTORY_SLOT_W = 96
 INVENTORY_SLOT_H = 96
 INVENTORY_PADDING = 8
@@ -27,11 +29,9 @@ INVENTORY_MARGIN = 16          # left/right gap between bar edge and the slot vi
 INVENTORY_SCROLLBAR_H = 10     # height of the horizontal scrollbar track
 INVENTORY_WHEEL_STEP = 104     # px scrolled per mouse-wheel notch (~one slot)
 
-STACK_ORIGIN = (40, 140)
+STACK_ORIGIN = (24, 104)      # left column; title (y-28) is the top header line
 STACK_SLOT_H = 24
 STACK_SLOT_W = 220
-
-DISCARD_RECT = (880, 380, 110, 100)
 
 COLOR_BG = (245, 230, 200)
 COLOR_TARGET_BG = (255, 248, 220)
@@ -49,13 +49,14 @@ COLOR_BUTTON = (180, 130, 60)
 COLOR_BUTTON_HOVER = (210, 160, 80)
 COLOR_BUTTON_TEXT = (255, 255, 255)
 COLOR_TEXT = (60, 40, 20)
-COLOR_DISCARD = (200, 100, 100)
-COLOR_DISCARD_HOVER = (230, 120, 120)
 COLOR_CUT_HINT = (255, 80, 80)
 COLOR_CUT_VALID = (80, 200, 80)
 COLOR_SCROLLBAR_TRACK = (200, 180, 150)
 COLOR_SCROLLBAR_THUMB = (160, 120, 60)
 COLOR_SCROLLBAR_THUMB_HOVER = (190, 145, 75)
+COLOR_PANEL_BORDER = (180, 140, 80)    # overlay panel border (matches target)
+COLOR_OVERLAY_BG = (30, 20, 10, 210)   # help overlay dim (RGBA)
+COLOR_OVERLAY_PANEL = (250, 240, 215)  # help overlay panel fill
 
 # --- Cake breaking (cuts can crack) ---
 # Break chance is interpolated by the cut piece's cell count between two anchors;
@@ -74,4 +75,3 @@ CUT_MESSAGE_MS = 2000
 
 # --- Crumbs resource (decorate the napoleon top) ---
 CRUMB_GOAL = TARGET_W * TARGET_H   # 24 crumb units fully decorate the napoleon top
-COLOR_DECOR = (180, 120, 60)       # HUD color for crumb / decoration readout

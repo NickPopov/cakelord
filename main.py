@@ -31,6 +31,7 @@ async def main() -> None:
             scene = WinScene(
                 getattr(scene, "win_avg_coverage", 0.0),
                 getattr(scene, "win_crumbs", 0),
+                getattr(scene, "win_layer_coverages", []),
             )
         elif getattr(scene, "next_scene", None) == "play":
             scene = PlayScene()

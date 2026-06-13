@@ -1,4 +1,4 @@
-"""UI components: target area, inventory bar, stack view, button, discard zone."""
+"""UI components: target area, inventory bar, stack view, button, help overlay."""
 
 from typing import List, Optional, Tuple
 
@@ -8,11 +8,12 @@ from config import (
     COLOR_BUTTON,
     COLOR_BUTTON_HOVER,
     COLOR_BUTTON_TEXT,
-    COLOR_DISCARD,
-    COLOR_DISCARD_HOVER,
     COLOR_GRID,
     COLOR_INVENTORY_BG,
     COLOR_INVENTORY_SLOT,
+    COLOR_OVERLAY_BG,
+    COLOR_OVERLAY_PANEL,
+    COLOR_PANEL_BORDER,
     COLOR_SCROLLBAR_THUMB,
     COLOR_SCROLLBAR_THUMB_HOVER,
     COLOR_SCROLLBAR_TRACK,
@@ -21,8 +22,8 @@ from config import (
     COLOR_TARGET_BG,
     COLOR_TARGET_BORDER,
     COLOR_TEXT,
-    DISCARD_RECT,
     GRID_CELL,
+    SCREEN_H,
     INVENTORY_MARGIN,
     INVENTORY_PADDING,
     INVENTORY_SCROLLBAR_H,
@@ -54,6 +55,37 @@ def draw_target_area(surface: pygame.Surface) -> None:
         y = ty + j * GRID_CELL
         pygame.draw.line(surface, COLOR_GRID, (tx, y), (tx + w, y), 1)
     pygame.draw.rect(surface, COLOR_TARGET_BORDER, (tx, ty, w, h), 3)
+
+
+def draw_help_overlay(surface: pygame.Surface, font: pygame.font.Font,
+                      big_font: pygame.font.Font) -> None:
+    """Full-screen dim plus a centered panel listing every control."""
+    dim = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+    dim.fill(COLOR_OVERLAY_BG)
+    surface.blit(dim, (0, 0))
+
+    lines = [
+        "L-drag: move piece",
+        "R: rotate active / hovered piece",
+        "Right-click: return piece to inventory",
+        "Backspace: toggle cut mode (cuts can crack)",
+        "Enter: finish layer     N: new game",
+        "Drop on inventory bar: return piece to inventory",
+        "Mouse wheel over inventory: scroll",
+        "H / Esc: close this menu",
+    ]
+    pw, ph = 560, 80 + len(lines) * 30
+    px = (SCREEN_W - pw) // 2
+    py = (SCREEN_H - ph) // 2
+    pygame.draw.rect(surface, COLOR_OVERLAY_PANEL, (px, py, pw, ph), border_radius=10)
+    pygame.draw.rect(surface, COLOR_PANEL_BORDER, (px, py, pw, ph), 3, border_radius=10)
+
+    heading = big_font.render("Controls", True, COLOR_TEXT)
+    surface.blit(heading, heading.get_rect(center=(SCREEN_W // 2, py + 30)))
+    ly = py + 64
+    for line in lines:
+        surface.blit(font.render(line, True, COLOR_TEXT), (px + 28, ly))
+        ly += 30
 
 
 class InventoryBar:
@@ -222,13 +254,6 @@ class StackView:
                 cov = font.render(f"{layer_coverages[k]:.0f}%", True, COLOR_TEXT)
                 surface.blit(cov, (self.x + self.slot_w - cov.get_width() - 6,
                                    slot_y + (self.slot_h - cov.get_height()) // 2))
-        base_y = self.y + LAYERS_NEEDED * (self.slot_h + 2) + 8
-        progress = font.render(f"{layers_done} / {LAYERS_NEEDED} layers", True, COLOR_TEXT)
-        surface.blit(progress, (self.x, base_y))
-        if layer_coverages:
-            avg = sum(layer_coverages) / len(layer_coverages)
-            avg_surf = font.render(f"Avg coverage: {avg:.0f}%", True, COLOR_TEXT)
-            surface.blit(avg_surf, (self.x, base_y + 22))
 
 
 class Button:
@@ -237,8 +262,9 @@ class Button:
         self.label = label
         self.enabled = True
 
-    def draw(self, surface: pygame.Surface, font: pygame.font.Font, mouse_pos: Tuple[int, int]) -> None:
-        hovered = self.enabled and self.rect.collidepoint(mouse_pos)
+    def draw(self, surface: pygame.Surface, font: pygame.font.Font, mouse_pos: Tuple[int, int],
+             hoverable: bool = True) -> None:
+        hovered = hoverable and self.enabled and self.rect.collidepoint(mouse_pos)
         color = COLOR_BUTTON_HOVER if hovered else COLOR_BUTTON
         if not self.enabled:
             color = (160, 150, 130)
@@ -250,20 +276,3 @@ class Button:
 
     def clicked(self, point: Tuple[float, float]) -> bool:
         return self.enabled and self.rect.collidepoint(point)
-
-
-class DiscardZone:
-    def __init__(self):
-        self.rect = pygame.Rect(*DISCARD_RECT)
-
-    def draw(self, surface: pygame.Surface, font: pygame.font.Font, mouse_pos: Tuple[int, int]) -> None:
-        hovered = self.rect.collidepoint(mouse_pos)
-        color = COLOR_DISCARD_HOVER if hovered else COLOR_DISCARD
-        pygame.draw.rect(surface, color, self.rect, border_radius=8)
-        pygame.draw.rect(surface, COLOR_TARGET_BORDER, self.rect, 2, border_radius=8)
-        label = font.render("DISCARD", True, COLOR_BUTTON_TEXT)
-        label_rect = label.get_rect(center=self.rect.center)
-        surface.blit(label, label_rect)
-
-    def contains(self, point: Tuple[float, float]) -> bool:
-        return self.rect.collidepoint(point)

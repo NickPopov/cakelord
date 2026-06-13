@@ -120,8 +120,12 @@ class GameState:
         if idx < 0 or idx >= len(self.inventory):
             return None
         shape = self.inventory.pop(idx)
-        cw, ch = shape.cell_dimensions()
-        shape.move_to(mouse_x - cw * GRID_CELL / 2, mouse_y - ch * GRID_CELL / 2)
+        # Center the piece's bounding box on the cursor. Using the bounding box
+        # (rather than cell_dimensions from the local origin) keeps offcuts whose
+        # cells don't start at (0,0) centered, instead of biased to one side.
+        shape.move_to(mouse_x, mouse_y)
+        bb = shape.bounding_box()
+        shape.move_by(mouse_x - bb.centerx, mouse_y - bb.centery)
         self.work_pieces.append(shape)
         self.dragging = shape
         self.drag_offset = (shape.world_x - mouse_x, shape.world_y - mouse_y)
@@ -139,6 +143,17 @@ class GameState:
             self.placed_pieces.remove(shape)
             self.work_pieces.append(shape)
         self.grab_work_piece(shape, mouse_x, mouse_y)
+
+    def return_to_inventory(self, shape: PolyominoShape) -> None:
+        """Send a placed or free-floating piece back to the inventory as a draggable cake."""
+        if shape is self.dragging:
+            self.dragging = None
+        if shape in self.placed_pieces:
+            self.placed_pieces.remove(shape)
+            self.inventory.append(shape)
+        elif shape in self.work_pieces:
+            self.work_pieces.remove(shape)
+            self.inventory.append(shape)
 
     def update_drag(self, mouse_x: float, mouse_y: float) -> None:
         if self.dragging is None:
@@ -180,15 +195,11 @@ class GameState:
                 shape.cells = prev_cells
                 shape.move_to(*prev_pos)
 
-    def release_drag(self, over_discard: bool, over_inventory: bool = False) -> None:
+    def release_drag(self, over_inventory: bool = False) -> None:
         if self.dragging is None:
             return
         shape = self.dragging
         self.dragging = None
-        if over_discard:
-            if shape in self.work_pieces:
-                self.work_pieces.remove(shape)
-            return
         if over_inventory:
             if shape in self.work_pieces:
                 self.work_pieces.remove(shape)
